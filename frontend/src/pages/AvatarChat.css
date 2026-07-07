@@ -1,0 +1,176 @@
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
+  gap: 8px;
+}
+
+.chat-topbar-title {
+  font-size: 19px;
+  font-weight: 800;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.chat-topbar-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.chat-topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: var(--font);
+}
+
+.avatar-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 22px;
+  flex-shrink: 0;
+  background: radial-gradient(ellipse 260px 160px at 50% 20%, rgba(102, 126, 234, 0.18), transparent 70%);
+}
+
+.avatar-name {
+  margin-top: 10px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.avatar-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 16px 8px;
+  min-height: 0;
+}
+
+.chat-inline-error {
+  color: var(--red);
+  font-size: 12.5px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin: 6px 0;
+}
+
+.quick-actions {
+  padding: 6px 16px;
+  flex-shrink: 0;
+}
+
+.chat-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  background: rgba(15, 18, 33, 0.7);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--card-border);
+}
+
+.chat-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 11px 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font);
+  outline: none;
+}
+
+.chat-input:focus {
+  border-color: var(--accent-1);
+}
+
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
+
+.voice-btn,
+.send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.voice-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+}
+
+.voice-btn-active {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  animation: micPulse 1s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.send-btn {
+  background: var(--accent-grad);
+  color: white;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:active {
+  transform: scale(0.92);
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+/* leave room below bottom-nav (fixed, ~64px) since chat page manages its own scroll */
+.chat-page {
+  padding-bottom: 64px;
+}

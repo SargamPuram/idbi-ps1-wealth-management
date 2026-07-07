@@ -1,0 +1,20 @@
+.add-goal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 150px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  border-style: dashed;
+  border-width: 1.5px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.add-goal-icon {
+  font-size: 26px;
+  color: var(--accent-1);
+}
