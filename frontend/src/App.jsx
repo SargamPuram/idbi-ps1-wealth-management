@@ -14,7 +14,7 @@ function PageWrap({ children }) {
 export default function App() {
   return (
     <CustomerProvider>
-      <BrowserRouter>
+      <BrowserRouter basename='/ps1'>
         <div className="app-shell">
           <Routes>
             <Route path="/" element={<AvatarChat />} />
@@ -57,3 +57,4 @@ export default function App() {
     </CustomerProvider>
   );
 }
+
