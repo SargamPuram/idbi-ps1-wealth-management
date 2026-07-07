@@ -98,14 +98,28 @@ No code changes should be required — `DhanviEngine` reads `GEMINI_API_KEY`/`GE
 env via `python-dotenv`, and the code path is identical whether the key is real or missing (only
 `is_available` flips).
 
-## Frontend detail
+## Frontend detail — ✅ DONE (completed + verified by orchestrating session 2026-07-07)
 
-Location: `ps1-wealth-management/frontend/`.
+Location: `ps1-wealth-management/frontend/`. All 5 pages built: Avatar Chat (`/`), Portfolio
+(`/portfolio`), Goals (`/goals`), Market (`/market`), Products (`/products`).
 
-(To be filled in as built — see spec in `CLAUDE_PROMPTS/04_PS1_WEALTH_MANAGEMENT.md` Prompt 2:
-Avatar Chat (/), Portfolio (/portfolio), Goals (/goals), Market (/market), Products (/products).)
+The background agent was cut off by a session limit mid-build with a real bug: `App.jsx`
+imported `./pages/Products` but that file didn't exist, which would have crashed the dev
+server/build the moment anyone hit `/products` or on a production build (Vite doesn't always
+surface a missing-module error at dev-server-startup time, only when that module is actually
+requested). Fixed by writing `pages/Products.jsx` + `Products.css` from scratch, matching the
+existing page conventions (`PageHeader`, `useFetch`, `StateViews`, `useCustomer` context,
+`api.products()` which already existed in `api/client.js`): category tabs (FDs/MFs/
+Insurance/NPS/Gold/PPF/Bonds from the real `/products` response), product cards with
+risk/returns/min-investment/lock-in, a "Recommended for you" badge, a compare-up-to-3 checkbox
+with a comparison table, and an "Invest via IDBI Bank" CTA.
 
-STATUS: not yet started as of this checkpoint write.
+Verified via headless Playwright across all 5 routes (`/`, `/portfolio`, `/goals`, `/market`,
+`/products`) — **zero console/page errors** — plus visually reviewed screenshots. Avatar chat
+hero screen (gradient orb avatar, particles, WhatsApp-style bubbles, quick-action chips, bottom
+nav) and Products page both look genuinely polished, not placeholder-quality. Frontend dev
+server confirmed running on port 5176, wired to the live backend on 8003 with the real Gemini
+key already active.
 
 ## Next steps if picking this up cold
 
