@@ -22,6 +22,10 @@ models/
 *.joblib
 *.pkl
 
+# Piper TTS voice models — downloaded at Docker build time (see backend/Dockerfile),
+# not source. ~60MB each, fetched from huggingface.co/rhasspy/piper-voices.
+backend/tts_models/
+
 # Logs
 *.log
 

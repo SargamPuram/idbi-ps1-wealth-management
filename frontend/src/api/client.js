@@ -1,6 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8003";
 
-async function request(path, options = {}) {
+async function doFetch(path, options = {}) {
   const url = `${BASE_URL}${path}`;
   let res;
   try {
@@ -23,7 +23,19 @@ async function request(path, options = {}) {
     }
     throw new Error(`API error ${res.status}: ${detail}`);
   }
+  return res;
+}
+
+async function request(path, options = {}) {
+  const res = await doFetch(path, options);
   return res.json();
+}
+
+// For binary responses (e.g. /tts returns audio/wav) — same error handling,
+// but resolves to a Blob instead of parsing JSON.
+async function requestBlob(path, options = {}) {
+  const res = await doFetch(path, options);
+  return res.blob();
 }
 
 export const api = {
@@ -56,6 +68,11 @@ export const api = {
 
   escalate: (payload) =>
     request("/escalate", { method: "POST", body: JSON.stringify(payload) }),
+
+  // Returns a Blob (audio/wav). Decoupled from /chat by design — call this
+  // separately once the chat text response is in hand.
+  tts: (payload) =>
+    requestBlob("/tts", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export { BASE_URL };

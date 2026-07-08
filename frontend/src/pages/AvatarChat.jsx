@@ -24,20 +24,106 @@ export default function AvatarChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [bannerError, setBannerError] = useState(null);
+  const [muted, setMuted] = useState(() => localStorage.getItem("dhanvi_tts_muted") === "1");
+  const [ttsMsgId, setTtsMsgId] = useState(null);
+  const [ttsPhase, setTtsPhase] = useState(null); // "loading" | "playing" | null
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
+  const audioRef = useRef(null);
+  const audioUrlRef = useRef(null);
+  const ttsSeqRef = useRef(0);
+  const mutedRef = useRef(muted);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+    localStorage.setItem("dhanvi_tts_muted", muted ? "1" : "0");
+    if (muted) cancelSpeech();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [muted]);
+
+  // Stops/clears any in-flight or playing Dhanvi audio and invalidates stale
+  // TTS requests (so a slow /tts response for an old message can't suddenly
+  // start playing over a newer one).
+  function cancelSpeech() {
+    ttsSeqRef.current += 1;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setTtsMsgId(null);
+    setTtsPhase(null);
+  }
+
+  // Fetches /tts for a bot message and plays it. Decoupled from /chat — this
+  // only runs after the text response is already rendered.
+  async function speakMessage(msgId, text, lang) {
+    cancelSpeech();
+    if (mutedRef.current) {
+      setTimeout(() => setAvatarState("idle"), 1600);
+      return;
+    }
+    const seq = ttsSeqRef.current;
+    setTtsMsgId(msgId);
+    setTtsPhase("loading");
+    try {
+      const blob = await api.tts({ text, language: lang });
+      if (seq !== ttsSeqRef.current) return; // superseded while the request was in flight
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      const finish = () => {
+        if (seq === ttsSeqRef.current) {
+          setTtsPhase(null);
+          setTtsMsgId(null);
+          setAvatarState("idle");
+        }
+      };
+      audio.onended = finish;
+      audio.onerror = finish;
+      setTtsPhase("playing");
+      await audio.play();
+    } catch (err) {
+      if (seq === ttsSeqRef.current) {
+        setTtsPhase(null);
+        setTtsMsgId(null);
+        setAvatarState("idle");
+      }
+      // Non-fatal: a broken/unreachable /tts shouldn't break the text chat.
+      console.warn("Dhanvi voice reply failed:", err.message);
+    }
+  }
 
   // Reset conversation whenever the demo persona or language changes.
   useEffect(() => {
+    cancelSpeech();
+    const welcomeText = WELCOME_MESSAGES[language] || WELCOME_MESSAGES.English;
+    const welcomeId = nextId();
     setMessages([
       {
-        id: nextId(),
+        id: welcomeId,
         role: "bot",
-        text: WELCOME_MESSAGES[language] || WELCOME_MESSAGES.English,
+        text: welcomeText,
         timestamp: timeNow(),
       },
     ]);
+    // The welcome line is a genuine Dhanvi reply too (just not from /chat), so
+    // speak it on load/persona-switch — that's the moment a demo needs to land.
+    speakMessage(welcomeId, welcomeText, language);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, language]);
+
+  // Stop any playing audio if the user navigates away from this page.
+  useEffect(() => {
+    return () => cancelSpeech();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -48,6 +134,9 @@ export default function AvatarChat() {
     if (!trimmed) return;
     setInput("");
     setBannerError(null);
+    // Starting a new turn should cut off any reply Dhanvi is still speaking,
+    // rather than letting it overlap/garble with the next response.
+    cancelSpeech();
 
     const userMsg = { id: nextId(), role: "user", text: trimmed, timestamp: timeNow() };
     const history = messages
@@ -68,10 +157,11 @@ export default function AvatarChat() {
       });
 
       setAvatarState("speaking");
+      const botMsgId = nextId();
       setMessages((prev) => [
         ...prev,
         {
-          id: nextId(),
+          id: botMsgId,
           role: "bot",
           text: res.response,
           timestamp: timeNow(),
@@ -80,7 +170,7 @@ export default function AvatarChat() {
           escalation: res.escalation_needed ? res.escalation_reason : null,
         },
       ]);
-      setTimeout(() => setAvatarState("idle"), 1600);
+      speakMessage(botMsgId, res.response, language);
     } catch (err) {
       setAvatarState("idle");
       setMessages((prev) => [
@@ -145,6 +235,16 @@ export default function AvatarChat() {
           <div className="chat-topbar-subtitle">Your IDBI Wealth Advisor</div>
         </div>
         <div className="chat-topbar-controls">
+          <button
+            type="button"
+            className={`mute-btn ${muted ? "mute-btn-muted" : ""}`}
+            onClick={() => setMuted((m) => !m)}
+            aria-label={muted ? "Unmute Dhanvi's voice" : "Mute Dhanvi's voice"}
+            aria-pressed={muted}
+            title={muted ? "Dhanvi's voice is muted" : "Dhanvi speaks her replies aloud"}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
           <select
             className="lang-select"
             value={language}
@@ -170,7 +270,12 @@ export default function AvatarChat() {
       <div className="chat-scroll" ref={scrollRef}>
         {messages.map((m) => (
           <div key={m.id}>
-            <ChatBubble role={m.role} text={m.text} timestamp={m.timestamp} />
+            <ChatBubble
+              role={m.role}
+              text={m.text}
+              timestamp={m.timestamp}
+              ttsPhase={m.role === "bot" && ttsMsgId === m.id ? ttsPhase : null}
+            />
             {m.recs && m.recs.length > 0 && m.recs.map((rec, i) => <ProductRecCard key={i} rec={rec} />)}
             {m.escalation && (
               <EscalationBanner

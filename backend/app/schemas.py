@@ -35,3 +35,8 @@ class EscalateRequest(BaseModel):
     reason: str
     context_summary: Optional[str] = None
     conversation_snippet: Optional[str] = None
+
+
+class TTSRequest(BaseModel):
+    text: str
+    language: Optional[str] = "English"

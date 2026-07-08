@@ -11,12 +11,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from advisory import data_store, finance
 from advisory.engine import DhanviEngine, GeminiUnavailable, detect_escalation
-from app.schemas import ChatRequest, EscalateRequest, GoalPlanRequest, SuitabilityRequest
+from advisory.tts_engine import TTSUnavailable, tts_engine
+from app.schemas import ChatRequest, EscalateRequest, GoalPlanRequest, SuitabilityRequest, TTSRequest
 
 app = FastAPI(
     title="PS1 — Dhanvi Wealth Advisory API",
@@ -56,6 +57,7 @@ def health():
         "service": "PS1 Dhanvi Wealth Advisory API",
         "customers_loaded": data_store.count(),
         "gemini": engine.status(),
+        "tts": tts_engine.status(),
         "sample_customer_ids": data_store.sample_ids(5),
     }
 
@@ -114,6 +116,20 @@ def chat(req: ChatRequest):
         "escalation_reason": escalation_reason,
         "language": language,
     }
+
+
+# ---------------------------------------------------------------------------
+# Text-to-speech (Piper, self-hosted, CPU-only — decoupled from /chat so text
+# generation never waits on audio synthesis; the frontend calls /chat first,
+# then fires a separate /tts request for the returned text).
+# ---------------------------------------------------------------------------
+@app.post("/tts")
+def tts(req: TTSRequest):
+    try:
+        audio_bytes = tts_engine.synthesize(req.text, req.language)
+    except TTSUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return Response(content=audio_bytes, media_type="audio/wav")
 
 
 # ---------------------------------------------------------------------------
