@@ -185,6 +185,20 @@ p {
   cursor: not-allowed;
 }
 
+/* Native <select> dropdown popups ignore inherited `color` and fall back to
+   OS-default (usually white) background, which combined with our light
+   --text-primary text makes options invisible until the OS hover highlight
+   kicks in. Force explicit colors on the popup list so it matches the app's
+   dark theme everywhere a <select> is used. */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: #1a1f35;
+  color: var(--text-primary);
+}
+
 .chip {
   display: inline-flex;
   align-items: center;

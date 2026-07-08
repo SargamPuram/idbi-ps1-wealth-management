@@ -58,6 +58,59 @@
   word-break: break-word;
 }
 
+/* react-markdown renders block-level tags (p, ul, strong, em, etc.) which
+   have their own browser-default margins/sizes. Reset them so assistant
+   messages keep the same typography as the plain-text bubble. */
+.chat-bubble-markdown p {
+  margin: 0 0 8px;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.chat-bubble-markdown p:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble-markdown strong {
+  font-weight: 700;
+  color: inherit;
+}
+.chat-bubble-markdown em {
+  font-style: italic;
+}
+.chat-bubble-markdown ul,
+.chat-bubble-markdown ol {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+.chat-bubble-markdown li {
+  margin-bottom: 3px;
+}
+.chat-bubble-markdown li:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble-markdown ul:last-child,
+.chat-bubble-markdown ol:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble-markdown a {
+  color: var(--accent-1, inherit);
+  text-decoration: underline;
+}
+.chat-bubble-markdown code {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+.chat-bubble-markdown blockquote {
+  margin: 4px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--card-border, rgba(255, 255, 255, 0.2));
+  color: inherit;
+  opacity: 0.85;
+}
+
 .chat-bubble-time {
   display: block;
   font-size: 10px;
