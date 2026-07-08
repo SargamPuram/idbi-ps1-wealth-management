@@ -6,6 +6,7 @@ FastAPI serving layer. Run with:
 import random
 import string
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,6 +48,25 @@ def _customer_or_404(customer_id: str) -> dict:
     return customer
 
 
+# Gemini's free-tier quota is shared across every AI-backed endpoint, and both
+# /market-pulse and /insights fire automatically on page load (not user-
+# initiated like /chat) -- so simply browsing between pages was silently
+# burning requests. A short TTL cache keeps repeated page visits within a
+# few minutes from re-hitting Gemini for what's effectively the same content.
+_AI_CACHE: dict[tuple, tuple[float, object]] = {}
+_AI_CACHE_TTL_SECONDS = 600
+
+
+def _cached_ai_call(cache_key: tuple, fn):
+    now = time.time()
+    cached = _AI_CACHE.get(cache_key)
+    if cached is not None and now - cached[0] < _AI_CACHE_TTL_SECONDS:
+        return cached[1]
+    value = fn()
+    _AI_CACHE[cache_key] = (now, value)
+    return value
+
+
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
@@ -76,7 +96,7 @@ def chat(req: ChatRequest):
         return {
             "response": (
                 "Namaste! I'm Dhanvi. My AI reasoning engine isn't connected yet — the bank's tech team needs to "
-                "set the GEMINI_API_KEY environment variable before I can chat freely. In the meantime, you can "
+                "set the DEEPSEEK_API_KEY environment variable before I can chat freely. In the meantime, you can "
                 "still explore your Portfolio, Goal Planner, Market Pulse and Product Catalog — those work fully "
                 "without me. Once the team plugs in the key, just retry this chat."
             ),
@@ -218,7 +238,10 @@ def market_pulse(customer_id: str | None = Query(default=None), language: str = 
     ai_powered = False
     if engine.is_available:
         try:
-            commentary = engine.market_commentary(snapshot, language=language)
+            commentary = _cached_ai_call(
+                ("market_commentary", snapshot["date"], language),
+                lambda: engine.market_commentary(snapshot, language=language),
+            )
             ai_powered = True
         except GeminiUnavailable:
             commentary = None
@@ -349,7 +372,10 @@ def customer_insights(customer_id: str, language: str = Query(default="English")
     ai_powered = False
     if engine.is_available:
         try:
-            ai_tip = engine.spending_tip(insights, language=language)
+            ai_tip = _cached_ai_call(
+                ("spending_tip", customer_id, language),
+                lambda: engine.spending_tip(insights, language=language),
+            )
             ai_powered = True
         except GeminiUnavailable:
             ai_tip = None

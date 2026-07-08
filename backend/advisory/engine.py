@@ -1,23 +1,27 @@
 """
-Dhanvi — Gemini-powered conversational wealth advisor engine.
+Dhanvi — DeepSeek-powered conversational wealth advisor engine.
 
 Design goal: the REST API must stay fully usable and testable even when
-GEMINI_API_KEY is missing/invalid. Every Gemini call is wrapped so failures
-raise GeminiUnavailable with a clear, actionable message instead of bubbling
-up as an unhandled 500. Callers (app/main.py) catch this and return a
-graceful, informative payload (HTTP 200 with ai_powered=false) rather than a
-crash, so the rest of the product (portfolio, goals, suitability, etc.) keeps
-working for demos before the team has a live key.
+DEEPSEEK_API_KEY is missing/invalid. Every DeepSeek call is wrapped so
+failures raise GeminiUnavailable (kept as the exception name for backward
+compatibility with app/main.py's existing except-clauses) with a clear,
+actionable message instead of bubbling up as an unhandled 500. Callers
+(app/main.py) catch this and return a graceful, informative payload (HTTP
+200 with ai_powered=false) rather than a crash, so the rest of the product
+(portfolio, goals, suitability, etc.) keeps working for demos before the
+team has a live key.
 """
 import json
 import os
 import re
 
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "deepseek-v4-flash"
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 ESCALATION_KEYWORDS = [
     "estate plan", "inheritance", "will", "nominee dispute", "trust fund",
@@ -39,25 +43,28 @@ class GeminiUnavailable(Exception):
 
 class DhanviEngine:
     def __init__(self):
-        self.api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-        self.model_name = (os.getenv("GEMINI_MODEL") or DEFAULT_MODEL).strip()
+        self.api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+        self.model_name = (os.getenv("DEEPSEEK_MODEL") or DEFAULT_MODEL).strip()
         self.client = None
         self.init_error = None
 
         if not self.api_key:
             self.init_error = (
-                "GEMINI_API_KEY is not set. Dhanvi's AI responses are disabled until the team "
-                "adds a valid key. Copy .env.example to .env, set GEMINI_API_KEY=<your key>, and "
-                "restart the server. All non-AI endpoints (portfolio, suitability, goal-plan, "
-                "products, insights, recommendations) work normally without it."
+                "DEEPSEEK_API_KEY is not set. Dhanvi's AI responses are disabled until the team "
+                "adds a valid key. Set DEEPSEEK_API_KEY=<your key> in backend/.env and restart the "
+                "server. All non-AI endpoints (portfolio, suitability, goal-plan, products, "
+                "insights, recommendations) work normally without it."
             )
             return
 
         try:
-            from google import genai  # imported lazily so missing package doesn't crash app import
-            self.client = genai.Client(api_key=self.api_key)
+            self.client = httpx.Client(
+                base_url="https://api.deepseek.com",
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                timeout=30.0,
+            )
         except Exception as e:  # pragma: no cover - defensive
-            self.init_error = f"Failed to initialize Gemini client: {type(e).__name__}: {e}"
+            self.init_error = f"Failed to initialize DeepSeek client: {type(e).__name__}: {e}"
             self.client = None
 
     @property
@@ -68,47 +75,47 @@ class DhanviEngine:
         return {
             "ai_powered": self.is_available,
             "model": self.model_name,
-            "message": "Gemini client ready." if self.is_available else self.init_error,
+            "message": "DeepSeek client ready." if self.is_available else self.init_error,
         }
 
     def _generate(self, system_prompt: str, user_message: str, history: list | None = None,
                    temperature: float = 0.7, max_output_tokens: int = 1024) -> str:
         if not self.is_available:
-            raise GeminiUnavailable(self.init_error or "Gemini client not initialized.")
+            raise GeminiUnavailable(self.init_error or "DeepSeek client not initialized.")
 
-        from google.genai import types as genai_types
-
-        contents = []
+        messages = [{"role": "system", "content": system_prompt}]
         for turn in (history or []):
-            role = "user" if turn.get("role") == "user" else "model"
+            role = "user" if turn.get("role") == "user" else "assistant"
             text = turn.get("content") or turn.get("message") or ""
             if text:
-                contents.append(genai_types.Content(role=role, parts=[genai_types.Part(text=text)]))
-        contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=user_message)]))
+                messages.append({"role": role, "content": text})
+        messages.append({"role": "user", "content": user_message})
 
-        config = genai_types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-            # gemini-2.5-flash spends its token budget on internal "thinking" by default,
-            # which can starve the visible answer and truncate it mid-sentence. Disabled
-            # here since wealth-advisory chat doesn't need multi-step reasoning.
-            thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
-        )
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_output_tokens,
+            # Reasoning stays internal (reasoning_content in the response, which we
+            # ignore) -- only message.content, the visible answer, is returned to callers.
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": "high",
+            "stream": False,
+        }
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name, contents=contents, config=config,
-            )
-            text = getattr(response, "text", None)
+            response = self.client.post("/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
             if not text:
-                raise GeminiUnavailable("Gemini returned an empty response.")
+                raise GeminiUnavailable("DeepSeek returned an empty response.")
             return text
         except GeminiUnavailable:
             raise
         except Exception as e:
             raise GeminiUnavailable(
-                f"Gemini API call failed ({type(e).__name__}: {e}). Check that GEMINI_API_KEY is "
-                f"valid and GEMINI_MODEL ('{self.model_name}') is a model your key can access."
+                f"DeepSeek API call failed ({type(e).__name__}: {e}). Check that DEEPSEEK_API_KEY is "
+                f"valid and DEEPSEEK_MODEL ('{self.model_name}') is a model your key can access."
             )
 
     # ------------------------------------------------------------------
